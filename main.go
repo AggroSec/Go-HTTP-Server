@@ -1,15 +1,39 @@
 package main
 
-import "net/http"
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"sync/atomic"
+)
+
+type apiConfig struct {
+	fileserverHits atomic.Int32
+}
 
 func main() {
-	serverHandler := http.NewServeMux()
+	const filepathRoot = "."
+	const port = 8080
+
+	mux := http.NewServeMux()
+	apiConfig := &apiConfig{}
+	mux.Handle("/app/", http.StripPrefix("/app", apiConfig.middlewareMetricsInc(http.FileServer(http.Dir(filepathRoot)))))
+	mux.HandleFunc("/healthz", healthHandler)
+	mux.HandleFunc("/metrics", apiConfig.metricsHandler)
+	mux.HandleFunc("/reset", apiConfig.resetMetrics)
+
 	server := &http.Server{
-		Addr:    ":8080",
-		Handler: serverHandler,
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: mux,
 	}
 
-	serverHandler.Handle("/", http.FileServer(http.Dir("./")))
+	fmt.Printf("Serving files from %s on port %d\n", filepathRoot, port)
+	log.Fatal(server.ListenAndServe())
+}
 
-	server.ListenAndServe()
+func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg.fileserverHits.Add(1)
+		next.ServeHTTP(w, r)
+	})
 }

@@ -1,27 +1,45 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
+
+	"github.com/AggroSec/Go-HTTP-Server/internal/database"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
-type apiConfig struct {
-	fileserverHits atomic.Int32
-}
-
 func main() {
+	godotenv.Load() // Load environment variables from .env file
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatal("Error connecting to database:", err)
+	}
+	defer db.Close()
+
 	const filepathRoot = "."
 	const port = 8080
 
 	mux := http.NewServeMux()
-	apiConfig := &apiConfig{}
+
+	dbQueries := database.New(db)
+
+	apiConfig := &apiConfig{
+		fileserverHits: atomic.Int32{},
+		db:             dbQueries,
+		platform:       os.Getenv("PLATFORM"),
+	}
 	mux.Handle("/app/", http.StripPrefix("/app", apiConfig.middlewareMetricsInc(http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("GET /api/healthz", healthHandler)
 	mux.HandleFunc("GET /admin/metrics", apiConfig.metricsHandler)
 	mux.HandleFunc("POST /admin/reset", apiConfig.resetMetrics)
 	mux.HandleFunc("POST /api/validate_chirp", chirpValidationHandler)
+	mux.HandleFunc("POST /api/users", apiConfig.handlerCreateUser)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),

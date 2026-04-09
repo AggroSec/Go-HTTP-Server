@@ -1,0 +1,121 @@
+package main
+
+import (
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/AggroSec/Go-HTTP-Server/internal/database"
+	"github.com/google/uuid"
+)
+
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+func (cfg *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
+	type SentChirp struct {
+		Body   string `json:"body"`
+		UserID string `json:"user_id"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	chirp := SentChirp{}
+	err := decoder.Decode(&chirp)
+	if err != nil {
+		respondWithError(w, http.StatusExpectationFailed, "Something went wrong")
+		return
+	}
+
+	if len(chirp.Body) > 140 {
+		respondWithError(w, 400, "Chirp is too long")
+		return
+	}
+
+	chirp.Body = cleanBody(chirp.Body)
+
+	savedChirp, err := cfg.db.AddChirp(r.Context(), database.AddChirpParams{
+		Body:   chirp.Body,
+		UserID: uuid.MustParse(chirp.UserID),
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		return
+	}
+
+	postedChirp := Chirp{
+		ID:        savedChirp.ID,
+		CreatedAt: savedChirp.CreatedAt,
+		UpdatedAt: savedChirp.UpdatedAt,
+		Body:      savedChirp.Body,
+		UserID:    savedChirp.UserID,
+	}
+
+	respondWithJSON(w, http.StatusCreated, postedChirp)
+}
+
+func cleanBody(body string) string {
+	split_body := strings.Split(body, " ")
+	bad_words := map[string]bool{
+		"kerfuffle": true,
+		"sharbert":  true,
+		"fornax":    true,
+	}
+	clean_body_slice := []string{}
+
+	for _, word := range split_body {
+		lowerWord := strings.ToLower(word)
+		if bad_words[lowerWord] {
+			clean_body_slice = append(clean_body_slice, "****")
+		} else {
+			clean_body_slice = append(clean_body_slice, word)
+		}
+	}
+	clean_body := strings.Join(clean_body_slice, " ")
+	return clean_body
+}
+
+func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.db.GetChirps(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		return
+	}
+
+	chirpsRetrieved := []Chirp{}
+	for _, chirp := range chirps {
+		chirpsRetrieved = append(chirpsRetrieved, Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		})
+	}
+
+	respondWithJSON(w, http.StatusOK, chirpsRetrieved)
+}
+
+func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("chirpID")
+	chirp, err := cfg.db.GetChirpByID(r.Context(), uuid.MustParse(id))
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Chirp not found")
+		return
+	}
+
+	chirpRetrieved := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+
+	respondWithJSON(w, http.StatusOK, chirpRetrieved)
+}

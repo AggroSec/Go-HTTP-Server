@@ -22,7 +22,7 @@ func main() {
 	}
 	defer db.Close()
 
-	const filepathRoot = "."
+	const filepathRoot = "./app"
 	const port = 8080
 
 	mux := http.NewServeMux()

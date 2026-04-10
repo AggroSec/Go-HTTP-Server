@@ -33,6 +33,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       os.Getenv("PLATFORM"),
+		jwtSecret:      os.Getenv("SECRET_KEY"),
 	}
 	mux.Handle("/app/", http.StripPrefix("/app", apiConfig.middlewareMetricsInc(http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("GET /api/healthz", healthHandler)
@@ -42,6 +43,9 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", apiConfig.chirpHandler)
 	mux.HandleFunc("GET /api/chirps", apiConfig.handlerGetChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiConfig.handlerGetChirpByID)
+	mux.HandleFunc("POST /api/login", apiConfig.handlerLogin)
+	mux.HandleFunc("POST /api/refresh", apiConfig.handlerRefreshToken)
+	mux.HandleFunc("POST /api/revoke", apiConfig.handlerRevokeRefreshToken)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AggroSec/Go-HTTP-Server/internal/auth"
 	"github.com/AggroSec/Go-HTTP-Server/internal/database"
 	"github.com/google/uuid"
 )
@@ -24,13 +25,26 @@ func (cfg *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 		UserID string `json:"user_id"`
 	}
 
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Authorization header not found")
+	}
+
+	userID, err := auth.ValidateJWT(tokenString, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid token")
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	chirp := SentChirp{}
-	err := decoder.Decode(&chirp)
+	err = decoder.Decode(&chirp)
 	if err != nil {
 		respondWithError(w, http.StatusExpectationFailed, "Something went wrong")
 		return
 	}
+
+	chirp.UserID = userID.String()
 
 	if len(chirp.Body) > 140 {
 		respondWithError(w, 400, "Chirp is too long")

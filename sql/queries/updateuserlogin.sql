@@ -2,4 +2,4 @@
 UPDATE users
 SET updated_at = NOW(), email = $2, hashed_password = $3
 WHERE id = $1
-RETURNING id, email, created_at, updated_at;
+RETURNING id, email, created_at, updated_at, is_chirpy_red;

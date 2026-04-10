@@ -34,6 +34,7 @@ func main() {
 		db:             dbQueries,
 		platform:       os.Getenv("PLATFORM"),
 		jwtSecret:      os.Getenv("SECRET_KEY"),
+		polkaKey:       os.Getenv("POLKA_KEY"),
 	}
 	mux.Handle("/app/", http.StripPrefix("/app", apiConfig.middlewareMetricsInc(http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("GET /api/healthz", healthHandler)
@@ -48,6 +49,7 @@ func main() {
 	mux.HandleFunc("POST /api/revoke", apiConfig.handlerRevokeRefreshToken)
 	mux.HandleFunc("PUT /api/users", apiConfig.handlerUpdateUserLogin)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiConfig.handlerDeleteChirp)
+	mux.HandleFunc("POST /api/polka/webhooks", apiConfig.handlerPolkaWebhook)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),

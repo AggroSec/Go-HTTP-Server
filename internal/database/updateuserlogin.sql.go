@@ -16,7 +16,7 @@ const updateUserLogin = `-- name: UpdateUserLogin :one
 UPDATE users
 SET updated_at = NOW(), email = $2, hashed_password = $3
 WHERE id = $1
-RETURNING id, email, created_at, updated_at
+RETURNING id, email, created_at, updated_at, is_chirpy_red
 `
 
 type UpdateUserLoginParams struct {
@@ -26,10 +26,11 @@ type UpdateUserLoginParams struct {
 }
 
 type UpdateUserLoginRow struct {
-	ID        uuid.UUID
-	Email     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Email       string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	IsChirpyRed bool
 }
 
 func (q *Queries) UpdateUserLogin(ctx context.Context, arg UpdateUserLoginParams) (UpdateUserLoginRow, error) {
@@ -40,6 +41,7 @@ func (q *Queries) UpdateUserLogin(ctx context.Context, arg UpdateUserLoginParams
 		&i.Email,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }

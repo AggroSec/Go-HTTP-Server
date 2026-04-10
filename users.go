@@ -158,3 +158,65 @@ func (cfg *apiConfig) handlerRevokeRefreshToken(w http.ResponseWriter, r *http.R
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (cfg *apiConfig) handlerUpdateUserLogin(w http.ResponseWriter, r *http.Request) {
+	type UpdateUserLoginRequest struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid token")
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid token")
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var req UpdateUserLoginRequest
+	err = decoder.Decode(&req)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "something went wrong in decoding")
+		return
+	}
+
+	if req.Email == "" {
+		respondWithError(w, http.StatusBadRequest, "Email is required")
+		return
+	}
+
+	if req.Password == "" {
+		respondWithError(w, http.StatusBadRequest, "Password is required")
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(req.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		return
+	}
+
+	updatedUser, err := cfg.db.UpdateUserLogin(r.Context(), database.UpdateUserLoginParams{
+		ID:             userID,
+		Email:          req.Email,
+		HashedPassword: hashedPassword,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusExpectationFailed, "Something went wrong")
+		return
+	}
+
+	user := User{
+		ID:        updatedUser.ID,
+		CreatedAt: updatedUser.CreatedAt,
+		UpdatedAt: updatedUser.UpdatedAt,
+		Email:     updatedUser.Email,
+	}
+
+	respondWithJSON(w, http.StatusOK, user)
+}

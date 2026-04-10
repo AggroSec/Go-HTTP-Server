@@ -46,6 +46,8 @@ func main() {
 	mux.HandleFunc("POST /api/login", apiConfig.handlerLogin)
 	mux.HandleFunc("POST /api/refresh", apiConfig.handlerRefreshToken)
 	mux.HandleFunc("POST /api/revoke", apiConfig.handlerRevokeRefreshToken)
+	mux.HandleFunc("PUT /api/users", apiConfig.handlerUpdateUserLogin)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiConfig.handlerDeleteChirp)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -95,6 +96,39 @@ func cleanBody(body string) string {
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+	authorID := r.URL.Query().Get("author_id")
+	sorting := r.URL.Query().Get("sort")
+
+	if sorting != "" && sorting != "asc" && sorting != "desc" {
+		respondWithError(w, http.StatusBadRequest, "Invalid sort parameter")
+		return
+	}
+
+	if authorID != "" {
+		authorUUID, err := uuid.Parse(authorID)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid author_id")
+			return
+		}
+		chirpsByAuthor, err := cfg.GetChirpsByAuthor(authorUUID, r)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+			return
+		}
+		switch sorting {
+		case "asc":
+			sort.Slice(chirpsByAuthor, func(i, j int) bool {
+				return chirpsByAuthor[i].CreatedAt.Before(chirpsByAuthor[j].CreatedAt)
+			})
+		case "desc":
+			sort.Slice(chirpsByAuthor, func(i, j int) bool {
+				return chirpsByAuthor[i].CreatedAt.After(chirpsByAuthor[j].CreatedAt)
+			})
+		}
+		respondWithJSON(w, http.StatusOK, chirpsByAuthor)
+		return
+	}
+
 	chirps, err := cfg.db.GetChirps(r.Context())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
@@ -112,7 +146,38 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	switch sorting {
+	case "asc":
+		sort.Slice(chirpsRetrieved, func(i, j int) bool {
+			return chirpsRetrieved[i].CreatedAt.Before(chirpsRetrieved[j].CreatedAt)
+		})
+	case "desc":
+		sort.Slice(chirpsRetrieved, func(i, j int) bool {
+			return chirpsRetrieved[i].CreatedAt.After(chirpsRetrieved[j].CreatedAt)
+		})
+	}
+
 	respondWithJSON(w, http.StatusOK, chirpsRetrieved)
+}
+
+func (cfg *apiConfig) GetChirpsByAuthor(authorID uuid.UUID, r *http.Request) ([]Chirp, error) {
+	chirps, err := cfg.db.GetChirpsByAuthor(r.Context(), authorID)
+	if err != nil {
+		return nil, err
+	}
+
+	chirpsRetrieved := []Chirp{}
+	for _, chirp := range chirps {
+		chirpsRetrieved = append(chirpsRetrieved, Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		})
+	}
+
+	return chirpsRetrieved, nil
 }
 
 func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
